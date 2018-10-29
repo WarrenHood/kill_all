@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 BASE_NAMES = input("Enter a space seperated list of base names: ").strip().split()
 MIN_NUM = int(input("Min Workstation number: "))
@@ -6,11 +7,13 @@ MAX_NUM = int(input("Max Workstation number: "))
 print( "Choose your base name:\n\tBase Names:\n"+"0) None\n"+"\n".join([str(i+1)+") " + BASE_NAMES[i] for i in range(len(BASE_NAMES))]))
 OWN_BASE = int(input().strip())-1
 OWN_WS = -1
+threads = []
+KILL = False
 if OWN_BASE > -1:
     OWN_WS = int(input("Enter your Workstation number: "))
 params = "/r /f /t 0"
 TKILL = input("Kill remote processes instead of shutdown?(y/n)").lower()[0] == "y"
-TO_KILL = ["chrome","firefox","iexplore",]
+TO_KILL = ["chrome","firefox","iexplore","MicrosoftEdge"]
 if TKILL:
     NEW_TO_KILL = input("Enter proccess names to kill seperated by a space\nDefault:\n"+"\n".join("\t"+TO_KILL[proc_ind] + ("\n" if proc_ind == len(TO_KILL)-1 else "") for proc_ind in range(len(TO_KILL)))).strip().split()
     if len(NEW_TO_KILL) > 0:
@@ -27,15 +30,19 @@ def pad_if_1(n):
     else:
         return str(n)
 def shutdown(ws,params,loop=False):
-    os.system("@echo off & shutdown "+params+" /m \\\\"+ws)
+    os.system("@echo off & shutdown "+params+" /m \\\\"+ws + ">nul 2>nul")
     while loop:
-        os.system("@echo off & shutdown "+params+" /m \\\\"+ws)
+        if KILL:
+            return
+        os.system("@echo off & shutdown "+params+" /m \\\\"+ws + " >nul 2>nul")
 def task_kill(ws,loop=False):
     for proc in TO_KILL:
-        os.system("@echo off & taskkill /S "+ws+" /IM " + proc + "* /F")
+        os.system("@echo off & taskkill /S "+ws+" /IM " + proc + "* /F >nul 2>nul")
     while loop:
+        if KILL:
+            return
         for proc in TO_KILL:
-            os.system("@echo off & taskkill /S "+ws+" /IM " + proc + "* /F")
+            os.system("@echo off & taskkill /S "+ws+" /IM " + proc + "* /F >nul 2>nul")
 for base in BASE_NAMES:
     for ws_id in range(MIN_NUM,MAX_NUM+1,1):
         ws_name = base+pad_if_1(ws_id)
@@ -50,6 +57,21 @@ for base in BASE_NAMES:
         if LOOP_FOREVER:
             print("Looping...")
         if not TKILL:
-            threading.Thread(target=shutdown,args=(ws_name,params,LOOP_FOREVER)).start()
+            nthread = threading.Thread(target=shutdown,args=(ws_name,params,LOOP_FOREVER))
+            threads.append(nthread)
+            nthread.start()
         else:
-            threading.Thread(target=task_kill,args=(ws_name,LOOP_FOREVER)).start()
+            nthread = threading.Thread(target=task_kill,args=(ws_name,LOOP_FOREVER))
+            threads.append(nthread)
+            nthread.start()
+while len(threads) and not KILL:
+    try:
+        pass
+    except KeyboardInterrupt:
+        KILL = True
+        for t in threads:
+            t.join()
+        print("Exiting...")
+        sys.exit(0)
+print("\nDone")
+sys.exit(0)

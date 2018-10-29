@@ -10,7 +10,7 @@ if OWN_BASE > -1:
     OWN_WS = int(input("Enter your Workstation number: "))
 params = "/r /f /t 0"
 TKILL = input("Kill remote processes instead of shutdown?(y/n)").lower()[0] == "y"
-TO_KILL = ["chrome","firefox","msedge"]
+TO_KILL = ["chrome","firefox","iexplore",]
 if TKILL:
     NEW_TO_KILL = input("Enter proccess names to kill seperated by a space\nDefault:\n"+"\n".join("\t"+TO_KILL[proc_ind] + ("\n" if proc_ind == len(TO_KILL)-1 else "") for proc_ind in range(len(TO_KILL)))).strip().split()
     if len(NEW_TO_KILL) > 0:

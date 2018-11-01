@@ -135,7 +135,7 @@ void menu_show(){
 	char target[512];
 	int min;
 	int max;
-	int choices = 12;
+	int choices = 16;
 	scanf("%d",&choice);
 	if(choice < 0 || choice > choices)printf("Invalid choice:%d",choice);
 	else if(choice == 0)std::exit(0);

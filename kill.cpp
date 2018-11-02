@@ -5,13 +5,27 @@
 #include <thread>
 #include <windows.h>
 #include <limits>
+#define GreenStatus 0x2F
+#define RedStatus 0x4F
 using namespace std;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 vector<char*> targets;
 vector<char*> target_procs;
 vector<char*> whitelist;
 vector<thread> threads;
-bool kill_running = false;
+int status_col = GreenStatus;
+char status_message[256];
+bool kill_running = true;
+void set_status(char* msg,bool error){
+	if(error){
+	sprintf(status_message,"ERROR: %s\n",msg);
+	status_col = RedStatus;
+	}
+	else {
+		sprintf(status_message,"%s\n",msg);
+		status_col = GreenStatus;
+	}
+}
 void WaitEnter() {
 	system("pause");
 }
@@ -63,18 +77,24 @@ void list_targets(){
 	for(auto x : targets)cout << x << endl;
 	char n;
 	WaitEnter();
+	set_status(" ",false);
+	status_col = 0;
 }
 void list_procs(){
 	system("cls");
 	printf("Targets:\n");
 	for(auto x : target_procs)cout << x << endl;
 	WaitEnter();
+	set_status(" ",false);
+	status_col = 0;
 }
 void list_whitelist(){
 	system("cls");
 	printf("Targets:\n");
 	for(auto x : whitelist)cout << x << endl;
 	WaitEnter();
+	set_status(" ",false);
+	status_col = 0;
 }
 void restart_target(char* name){
 	char command[300];
@@ -92,9 +112,10 @@ void tkill_target(char* name,char* proc){
 	system(command);
 }
 void tkill_target_loop(char* name,char* proc){
+	kill_running = false;
 	char command[300];
 	sprintf(command,"@echo off & taskkill /S %s /IM %s* /F >nul 2>nul",name,proc);
-	while(kill_running)system(command);
+	while(!kill_running)system(command);
 }
 void charpVecClear(vector<char*>& v){
 	for(char* cp : v)free(cp);
@@ -127,6 +148,8 @@ void menu_show(){
 	col = 4 + 15*16;
 	SetConsoleTextAttribute(hConsole, col);
 	printf("                 Targets:%d                          Whitelist:%d                 \n",targets.size(),whitelist.size());
+	SetConsoleTextAttribute(hConsole,status_col);
+	printf("%s",status_message);
 	col = 10;
 	SetConsoleTextAttribute(hConsole, col);
 	printf("WinKill>");
@@ -137,7 +160,7 @@ void menu_show(){
 	int max;
 	int choices = 16;
 	scanf("%d",&choice);
-	if(choice < 0 || choice > choices)printf("Invalid choice:%d",choice);
+	if(choice < 0 || choice > choices)set_status("Invalid choice",true);
 	else if(choice == 0)std::exit(0);
 	else if(choice == 1)list_targets();
 	else if(choice == 2){
@@ -145,6 +168,7 @@ void menu_show(){
 		scanf("%s",target);
 		printf("\n");
 		add_target(target);
+		set_status("Target has been added",false);
 	}
 	else if(choice == 3){
 		printf("Enter base name:");
@@ -155,14 +179,20 @@ void menu_show(){
 		scanf("%d",&max);
 		printf("\n");
 		add_range(base,min,max);
+		set_status("Targets have been added",false);
 	}
-	else if(choice == 4)charpVecClear(targets);
+	else if(choice == 4){
+		charpVecClear(targets);
+		set_status("Targets have been cleared",false);
+		status_col = RedStatus;
+	}
 	else if(choice == 5)list_whitelist();
 	else if(choice == 6){
 		printf("Enter target name:");
 		scanf("%s",target);
 		printf("\n");
 		whitelist_target(target);
+		set_status("Target has been whitelisted",false);
 	}
 	else if(choice == 7){
 		printf("Enter base name:");
@@ -173,42 +203,61 @@ void menu_show(){
 		scanf("%d",&max);
 		printf("\n");
 		whitelist_range(base,min,max);
+		set_status("Targets have been whitelisted",false);
 	}
-	else if(choice == 8)charpVecClear(whitelist);
+	else if(choice == 8){
+		charpVecClear(whitelist);
+		set_status("Whitelist cleared",false);
+		status_col = RedStatus;
+	}
 	else if(choice == 9)list_procs();
 	else if(choice == 10){
 		printf("Enter process name:");
 		scanf("%s",target);
 		printf("\n");
 		add_proc(target);
+		set_status("Target added",false);
 	}
 	else if(choice == 11){
+		charpVecClear(target_procs);
+		set_status("Process list has been cleared",false);
+		status_col = RedStatus;
+	}
+	else if(choice == 12){
 		for(char* targ : targets)if(!contains(whitelist,targ)){
 			for(char* proc : target_procs){
 				thread(tkill_target,targ,proc).detach();
 			}
 		}
+		set_status("Processes have been killed on remote targets",false);
+		status_col = RedStatus;
 	}
-	else if(choice == 12){
-		kill_running = true;
+	else if(choice == 13){
 			for(char* targ : targets)if(!contains(whitelist,targ)){
 				for(char* proc : target_procs)threads.emplace_back(tkill_target_loop,targ,proc);
 			}
-	}
-	else if(choice == 13){
-		kill_running = false;
-		for (thread& t : threads)t.join();
-		threads.clear();
+		set_status("Running process killer",false);
 	}
 	else if(choice == 14){
-		for(char* targ : targets)if(!contains(whitelist,targ)){
-			thread(restart_target,targ).detach();
-		}
+		kill_running = true;
+		for (thread& t : threads)t.join();
+		threads.clear();
+		set_status("Stopped process killer",false);
+		status_col = RedStatus;
 	}
 	else if(choice == 15){
 		for(char* targ : targets)if(!contains(whitelist,targ)){
+			thread(restart_target,targ).detach();
+		}
+		set_status("Targets have been restarted",false);
+		status_col = RedStatus;
+	}
+	else if(choice == 16){
+		for(char* targ : targets)if(!contains(whitelist,targ)){
 			thread(shutdown_target,targ).detach();
 		}
+		set_status("Targets have been shut down",false);
+		status_col = RedStatus;
 	}
 	col = 15;
 	SetConsoleTextAttribute(hConsole, col);
